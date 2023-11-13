@@ -82,7 +82,7 @@ def run(
         half=False,  # use FP16 half-precision inference
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
-        resizes_obj_json = '',
+        resizes_obj_json = 'data/resizes_mapping.json',
 ):
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
