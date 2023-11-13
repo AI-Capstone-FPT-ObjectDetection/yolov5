@@ -1,3 +1,15 @@
+# How to clone a PrivateRepo github
+```
+git clone https://<pat>@github.com/AI-Capstone-FPT-ObjectDetection/yolov5.git
+```
+Where **pat** is your Personal Access Token, see how to get it [here](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-personal-access-token-classic).
+
+<br>
+
+---
+
+<br>
+
 <div align="center">
   <p>
     <a href="https://yolovision.ultralytics.com/" target="_blank">
