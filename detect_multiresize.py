@@ -82,7 +82,7 @@ def run(
         half=False,  # use FP16 half-precision inference
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
-        resizes_obj_json = 'data/resizes_mapping.json',
+        resizes_obj_json = ROOT / 'data/resizes_mapping.json',
 ):
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -99,17 +99,20 @@ def run(
 
 
     # Resize-param for each class
+    print(f'Reading resizes mapping from {resizes_obj_json}...')
     try:
       with open(resizes_obj_json, 'r') as f:
         mapping_resizes_obj = json.load(f)
       no_of_infer = len(list(mapping_resizes_obj.keys()))
       print(f"Spliting objects in to {no_of_infer} parts, each is inferred separatedly.")
     except:
-      mapping_resizes_obj[imgsz] = classes
+      print('Cannot find resizes_mapping file.')
+      mapping_resizes_obj = {}
+      mapping_resizes_obj[imgsz[0]] = classes
       print("Inference detect.py only once for all classes, using `imgsz` and `classes` as Ultralytics")
 
-    if no_of_infer:
-      preds_all = []
+    # if no_of_infer:
+    #   preds_all = []
 
     # Load model
     device = select_device(device)
@@ -284,7 +287,7 @@ def parse_opt():
     parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
     parser.add_argument('--vid-stride', type=int, default=1, help='video frame-rate stride')
-    parser.add_argument('--resizes-obj-json', default='', help='best image size for small and large objects, as json')
+    parser.add_argument('--resizes-obj-json', default= ROOT / 'data/resizes_mapping.json', help='best image size for small and large objects, as json')
 
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
