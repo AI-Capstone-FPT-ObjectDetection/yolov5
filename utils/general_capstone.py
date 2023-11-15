@@ -9,6 +9,7 @@ from pathlib import Path
 
 
 def make_image_wbbox(image, preds, hide_conf=False, hide_labels=False, line_thickness=3):
+  print('\nCombining Image and Labels...')
   im0 = image
   imgsz = im0.shape[:2] # h w 
   print('Shape of the output image is [w, h]: ', imgsz[1], imgsz[0])
@@ -18,7 +19,7 @@ def make_image_wbbox(image, preds, hide_conf=False, hide_labels=False, line_thic
       if bbox_str == '':
         continue
       bbox = bbox_str.split(' ')
-      c, xywh_ratio_str, conf = int(bbox[0]), bbox[1:5], float(bbox[5])
+      c, xywh_ratio_str, conf = int(float(bbox[0])), bbox[1:5], float(bbox[5])
       xywh_ratio = [float(i) for i in xywh_ratio_str]
       xyxy = xywhn2xyxy(torch.tensor(xywh_ratio), w=imgsz[1], h=imgsz[0])
       annotator = Annotator(im0, line_width=line_thickness, example=str(names))

@@ -49,9 +49,10 @@ from ultralytics.utils.plotting import Annotator, colors, save_one_box
 from models.common import DetectMultiBackend
 from utils.dataloaders import IMG_FORMATS, VID_FORMATS, LoadImages, LoadScreenshots, LoadStreams
 from utils.general import (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, colorstr, cv2,
-                           increment_path, non_max_suppression, print_args, scale_boxes, strip_optimizer, xyxy2xywh)
+                           increment_path, non_max_suppression, print_args, scale_boxes, strip_optimizer, xyxy2xywh,xywhn2xyxy)
 from utils.torch_utils import select_device, smart_inference_mode
 from utils.general_capstone import make_image_wbbox
+from utils.metrics import bbox_iou
 @smart_inference_mode()
 def run(
         weights=ROOT / 'yolov5s.pt',  # model path or triton URL
@@ -69,7 +70,7 @@ def run(
         save_crop=False,  # save cropped prediction boxes
         nosave=False,  # do not save images/videos
         classes=None,  # filter by class: --class 0, or --class 0 2 3
-        agnostic_nms=False,  # class-agnostic NMS
+        agnostic_nms=True,  # class-agnostic NMS
         augment=False,  # augmented inference
         visualize=False,  # visualize features
         update=False,  # update all models
@@ -154,8 +155,9 @@ def run(
 
           # NMS 
           with dt[2]:
+            
               pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
-
+              
           # Second-stage classifier (optional)
           # pred = utils.general.apply_classifier(pred, classifier_model, im, im0s)
 
@@ -181,11 +183,8 @@ def run(
               else:
                   p, im0, frame = path, im0s.copy(), getattr(dataset, 'frame', 0)
 
-              # now = datetime.now()
-              current_time = ''# now.strftime("%H%M%S")
-              # print("Current Time =", current_time)
               p = Path(p)  # to Path
-              save_path = str(save_dir /(current_time+'_'+p.name))  # im.jpg
+              save_path = str(save_dir / p.name)  # im.jpg
               txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # im.txt
               s += '%gx%g ' % im.shape[2:]  # print string
               gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
@@ -230,6 +229,9 @@ def run(
           # Print time (inference-only)
           LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
 
+    if save_txt or save_img:
+        s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
+        LOGGER.info(f"{s}")
 
     # Merge labels of the same image (e.g. 2 into 1)
     LABEL_DIR = f"{save_dir / 'labels'}"
@@ -238,21 +240,69 @@ def run(
       label_file = os.path.join(LABEL_DIR, label_filename)
       with open(label_file, 'r') as f:
         bboxes = f.read().split('\n')
-        # print('Labels loaded from ', label_file)
         preds_r.extend(bboxes)
       
-    img_to_save = make_image_wbbox(im_capstone, preds_r)
+    # Apply nms on the labels (mainly agnostic-nms between 2 batches)
+    preds_r # List of bboxes, class, x y w h, conf
+    preds_float = []
+    for pred in preds_r:
+      pred_str_lst = pred.split(' ')
+      if pred_str_lst == ['']:
+        continue
+      # print('ln255 ', pred_str_lst)
+      pred_float = [float(i) for i in pred_str_lst]
+      preds_float.append(pred_float)
+    # print('preds_float is: ', preds_float)
+
+    print('No of bboxes b4 merging-nms: ', len(preds_float))
+    preds_float_cp = preds_float.copy()
+    for i1, bbox1 in enumerate(preds_float_cp):
+      for i2, bbox2 in enumerate(preds_float_cp):
+          if i1 <= i2:
+            continue
+          xywh1 = torch.FloatTensor(bbox1[1:5])
+          xywh2 = torch.FloatTensor(bbox2[1:5])
+
+          iou = float(bbox_iou(xywh1, xywh2))
+          if iou > iou_thres:
+            # print(f'bbox1: {bbox1}, bbox2: {bbox2}')
+            # print(f'  iou={iou} > {iou_thres}')
+            conf1 = bbox1[-1]
+            conf2 = bbox2[-1]
+            if conf1 < conf2:
+              try:
+                preds_float.remove(bbox1)
+              except:
+                pass # already removed.
+              # print('bbox1 removed, jump to next bbox1.')
+              break
+            else:
+              try:
+                preds_float.remove(bbox2)
+              except:
+                pass # already removed.
+              # print('bbox2 removed, step to next bbox2.')
+              continue
+          # print('both bboxes are kept.')
+
+    print('No of bboxes after merging-nms: ', len(preds_float))
+
+    # preds_str = [' '.join([str[i] for i in bbox]) for bbox in preds_float]
+    preds_str = []
+    for bbox in preds_float:
+      bbox_str = str(bbox[0])
+      for i in bbox[1:]:
+        bbox_str+= f' {i}'
+      preds_str.append(bbox_str)
+
+    img_to_save = make_image_wbbox(im_capstone, preds_str)
     cv2.imwrite(save_path, img_to_save)
-
-    
-
+    LOGGER.info(f"Image saved to {save_path}")
 
     # Print results
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
     LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}' % t)
-    if save_txt or save_img:
-        s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
-        LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
+    LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}")
     if update:
         strip_optimizer(weights[0])  # update model (to fix SourceChangeWarning)
 
