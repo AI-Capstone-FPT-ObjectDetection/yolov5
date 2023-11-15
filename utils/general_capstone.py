@@ -8,11 +8,13 @@ from pathlib import Path
 
 
 
-def make_image_wbbox(image, preds, hide_conf=False, hide_labels=False, line_thickness=3):
+def make_image_wbbox(image, preds, hide_conf=False, hide_labels=False):
   print('\nCombining Image and Labels...')
   im0 = image
   imgsz = im0.shape[:2] # h w 
   print('Shape of the output image is [w, h]: ', imgsz[1], imgsz[0])
+
+  line_thickness = 2* int(imgsz[1]/640)
 
   # Process predictions, plot onto image
   for i, bbox_str in enumerate(preds): 
