@@ -112,14 +112,17 @@ def run(
       mapping_resizes_obj[imgsz[0]] = classes
       print("Inference detect.py only once for all classes, using `imgsz` and `classes` as Ultralytics")
 
-    # if no_of_infer:
-    #   preds_all = []
+    timestamp_0 = datetime.now()
+
 
     # Load model
     device = select_device(device)
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data, fp16=half)
     stride, names, pt = model.stride, model.names, model.pt
     imgsz = check_img_size(imgsz, s=stride)  # check image size
+
+    timestamp_1 = datetime.now()
+
 
     for imgsz_value, classes in mapping_resizes_obj.items():
       print(f'* Inferring with imgsz={imgsz_value}, obj classes in this batch {classes}...')
@@ -233,6 +236,7 @@ def run(
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
         LOGGER.info(f"{s}")
 
+    timestamp_2= datetime.now()
     # Merge labels of the same image (e.g. 2 into 1)
     LABEL_DIR = f"{save_dir / 'labels'}"
     preds_r = []
@@ -298,6 +302,15 @@ def run(
     img_to_save = make_image_wbbox(im_capstone, preds_str)
     cv2.imwrite(save_path, img_to_save)
     LOGGER.info(f"Image saved to {save_path}")
+
+    timestamp_3= datetime.now()
+
+
+    timelen_load = (timestamp_1 - timestamp_0).total_seconds() * 1000
+    timelen_infer = (timestamp_2 - timestamp_1).total_seconds() * 1000
+    timelen_merge = (timestamp_3 - timestamp_2).total_seconds() * 1000
+    timelen_total = (timestamp_3 - timestamp_0).total_seconds() * 1000
+    print(f'Speed:{timelen_load:.1f}ms load-model, {timelen_infer:.1f}ms infer, {timelen_merge:.1f}ms merge, TOTAL:{timelen_total:.1f}ms')
 
     # Print results
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
